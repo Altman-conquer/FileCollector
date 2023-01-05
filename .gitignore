@@ -1,0 +1,6 @@
+/.idea/
+/collector/migrations/
+/static/
+__pycache__/
+*.pyc
+
