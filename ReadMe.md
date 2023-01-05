@@ -4,6 +4,14 @@
 to deploy a website on your server, providing many
 features as listed below.
 
+## Screenshots
+
+**Login Page**
+![Screenshot](img/login.png)
+
+**Home Page**
+![Screenshot](img/main.png)
+
 ## Features
 
 * File Download  
