@@ -12,6 +12,45 @@
     <script src="https://www-zhandj-com-1306639613.cos.ap-guangzhou.myqcloud.com/static_files/bootstrap.bundle.min.js"></script>
 </head>
 <body>
+
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasExample" aria-labelledby="offcanvasExampleLabel">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="offcanvasExampleLabel">侧边栏</h5>
+        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+
+    <p class="border-top my-3"></p>
+    <div class="offcanvas-body">
+        <p>欢迎，用户： {{ user.username }}</p>
+        <p class="border-top my-3"></p>
+
+        <ul class="nav nav-pills flex-column mb-auto">
+            <li>
+                <a class="nav-item " aria-current="page" data-name="{{ user.username }}" type="button"
+                   id="btn_change_user_name">
+                    更改用户名
+                </a>
+            </li>
+            <li class="border-top my-3"></li>
+
+            <li>
+                <a class="nav-item" id="btn_feedback" aria-current="page" type="button">
+                    反馈问题
+                </a>
+            </li>
+            <li class="border-top my-3"></li>
+
+            <li>
+                <a class="nav-item" aria-current="page" href="{% url 'collector:logout' %}">
+                    注销
+                </a>
+            </li>
+        </ul>
+
+    </div>
+</div>
+
 <nav class="navbar navbar-expand-lg navbar-light bg-light px-0 py-3 border border-2">
     <div class="container-xl">
         <!-- Logo -->
@@ -26,30 +65,22 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarCollapse">
             <!-- Nav -->
-            <div class="navbar-nav mx-lg-auto">
+            <div class="navbar-nav mx-lg-auto badge bg-opacity-30 bg-secondary p-3">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
                         <li class="breadcrumb-item active">路径：</li>
-                        {% for k,v in path.items %}
-                            <li class="breadcrumb-item"><a href="{% url 'collector:prev' v %}">{{ k }}</a></li>
+                        {% for i in path %}
+                            <li class="breadcrumb-item"><a
+                                    href="{% url 'collector:prev' forloop.revcounter0 %}">{{ i }}</a></li>
                         {% endfor %}
                     </ol>
                 </nav>
             </div>
-            <div class="dropdown">
-                <button class="btn btn-sm btn-neutral dropdown-toggle" type="button" id="dropdownMenuButton"
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="bi bi-person-circle"></i>
-                    {{ user.username }}
-                </button>
-                <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-                    <li><a class="dropdown-item" id="btn_change_user_name"
-                           data-name="{{ user.username }}" type="button">更改用户名</a></li>
-                    <li><a class="dropdown-item" href="{% url 'collector:logout' %}">注销</a></li>
-                    <li><a class="dropdown-item" type="button" id="btn_feedback">反馈问题</a>
-                    </li>
-                </ul>
-            </div>
+            <button class="btn btn-outline-secondary text-muted" type="button" data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvasExample"
+                    aria-controls="offcanvasExample">
+                <i class="bi bi-person-circle m-2"></i>设置
+            </button>
 
         </div>
     </div>
@@ -202,8 +233,11 @@
             </div>
             <div class="modal-body">
                 文件下载未完成前，请勿关闭该窗口
-                <div class="progress">
+                <div class="progress m-5">
                     <progress value="0" max="100" style="width: 100%;" id="download_progress"></progress>
+                </div>
+                <div class="max-w-full text-center m-5">
+                    <span id="download_speed" class="badge bg-opacity-30 bg-info text-info">0</span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -231,8 +265,11 @@
             </div>
             <div class="modal-body">
                 文件上传未完成前，请勿关闭该窗口
-                <div class="progress">
+                <div class="progress m-5">
                     <progress value="0" max="100" style="width: 100%;" id="upload_progress"></progress>
+                </div>
+                <div class="max-w-full text-center m-5">
+                    <span id="upload_speed" class="badge bg-opacity-30 bg-info text-info">0</span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -360,6 +397,8 @@
 
     function download_file(file_path, file_name, file_size) {
         var request = new XMLHttpRequest();
+        let prev_time = new Date().getTime();
+        let prev_downloaded = 0;
         request.open('POST', '{% url "collector:download" %}', true);
         request.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
         request.responseType = 'blob';
@@ -379,6 +418,16 @@
         };
         request.onprogress = event => {
             $("#download_progress").attr("value", Math.round(event.loaded / file_size * 100));
+            const current_time = new Date().getTime();
+            // calculate download speed
+            const speed = (event.loaded - prev_downloaded) / (current_time - prev_time);
+            prev_downloaded = event.loaded;
+            prev_time = current_time
+            // convert the unit of speed to a suitable one
+            const unit = speed > 1024 ? 'MB/s' : 'KB/s';
+            const converted_speed = speed > 1024 ? speed / 1024 : speed;
+            // update the speed
+            $('#download_speed').text("下载速度: " + converted_speed.toFixed(2) + unit);
         }
         request.onloadend = function (e) {
             if (this.status === 200) {
@@ -525,9 +574,23 @@
             $.ajax({
                 xhr: function () {
                     var xhr = new window.XMLHttpRequest();
-                    xhr.upload.addEventListener("progress", function (evt) {
-                        var percent = Math.round(evt.loaded / evt.total * 100);
+                    let prev_time = new Date().getTime();
+                    let prev_uploaded = 0;
+                    xhr.upload.addEventListener("progress", function (event) {
+                        const percent = Math.round(event.loaded / event.total * 100);
                         $("#upload_progress").attr("value", percent);
+
+                        const current_time = new Date().getTime();
+                        // calculate upload speed
+                        const speed = (event.loaded - prev_uploaded) / (current_time - prev_time);
+                        prev_uploaded = event.loaded;
+                        prev_time = current_time
+                        // convert the unit of speed to a suitable one
+                        const unit = speed > 1024 ? 'MB/s' : 'KB/s';
+                        const converted_speed = speed > 1024 ? speed / 1024 : speed;
+                        // update the speed
+                        $('#upload_speed').text("上传速度: " + converted_speed.toFixed(2) + unit);
+
                     }, false);
                     return xhr;
                 },

@@ -1,4 +1,4 @@
-from django.urls import path, re_path
+from django.urls import path, re_path, reverse
 
 import collector.views as views
 
@@ -25,4 +25,7 @@ urlpatterns = [
     path('main/delete', views.delete, name='delete'),
     path('main/forcedelete', views.force_delete, name='forcedelete'),
     path('main/feedback', views.feedback, name='feedback'),
+
+    # path('view', views.view, name='view_without_path'),
+    re_path(r'^content/(?P<path>.*)', views.content, name='content'),
 ]

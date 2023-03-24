@@ -76,7 +76,7 @@ class Traverser:
     def __init__(self, path):
         if path is None:
             raise ValueError('Traverser path cannot be None')
-        elif not os.path.exists(path):
+        elif not Traverser.is_exist(path):
             raise ValueError('Traverser path does not exist')
         self.path = path
 
@@ -109,6 +109,10 @@ class Traverser:
 
     def pwd(self):
         return self.path
+
+    @staticmethod
+    def is_exist(path):
+        return os.path.exists(path)
 
     def is_dir(self, name: str = None):
         if name is None:
@@ -193,7 +197,9 @@ class FTP:
         file_path = join_path(self.path, file_name)
         with open(file_path, 'wb') as f:
             for chunk in file.chunks():
+                print(123)
                 f.write(chunk)
+                # time.sleep(1)
         return True
 
     def cwd(self):

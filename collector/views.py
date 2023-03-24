@@ -18,10 +18,25 @@ from tencentcloud.sms.v20210111 import sms_client, models
 from FileCollector.settings import VALID_TIME, ACTIVE_TIME, HOME_PATH, TENCENT_SECRET_ID, TENCENT_SECRET_KEY, \
     ROOT_USER_PHONE, ROOT_USER_NAME, ROOT_USER_PASSWORD, UPLOAD_MAX_SIZE, ZIP_FILE_PATH
 from .ftp import FTP, Traverser
-from .models import SmsCode, User, Folder, FeedBack
+from .models import SmsCode, User, Folder, FeedBack, UploadRecord
 from .utilfunctions import join_path
 
 FTP.default_path = HOME_PATH
+
+
+
+def content(request, path):
+    print(path)
+    if len(path) == 0:
+        path = request.session.get('ftp_path', HOME_PATH)
+    else:
+        path = join_path(HOME_PATH, path)
+    while len(path) > len(HOME_PATH):
+        if Traverser.is_exist(path):
+            break
+        path = path[:path.rfind('/')]
+    request.session['ftp_path'] = path
+    return main(request)
 
 
 def info(request):
@@ -122,9 +137,11 @@ def main(request, error_info=None):
             path = ftp.pwd_list()
             while '' in path:
                 path.remove('')
-            result = {'HOME': len(path)}
-            for k, v in enumerate(path):
-                result[v] = len(path) - k - 1
+            # result = {'HOME': len(path)}
+            # for k, v in enumerate(path):
+            #     result[v] = len(path) - k - 1
+            result = ['HOME'] + path
+
             return render(request, 'collector/main.html', {'user': User.objects.get(phone=request.session['phone']),
                                                            'folders': ftp.dirs(), 'path': result,
                                                            'error_info': error_info})
@@ -174,7 +191,7 @@ def enter_folder(request):
                 request.session['ftp_path'] = new_path
         except Exception as e:
             print(e)
-    return redirect('collector:main')
+    return redirect('collector:content', path=request.session.get('ftp_path', HOME_PATH)[len(HOME_PATH):])
 
 
 def prev_folder(request, level=1):
@@ -192,7 +209,7 @@ def prev_folder(request, level=1):
     if len(cur_path) <= len(FTP.default_path):
         cur_path = FTP.default_path
     request.session['ftp_path'] = cur_path
-    return redirect('collector:main')
+    return redirect('collector:content', path=request.session.get('ftp_path', HOME_PATH)[len(HOME_PATH):])
 
 
 def download_check(request):
@@ -266,14 +283,34 @@ def upload(request):
             if request.FILES['file'].size > UPLOAD_MAX_SIZE:
                 return JsonResponse(
                     {'success': False, 'info': '文件大小超过限制,最大为' + str(UPLOAD_MAX_SIZE / 1024 / 1024) + 'M'})
+            # record = async_upload_request()
+            # thread = threading.Thread(target=async_upload,
+            #                           args=(record, request.session['ftp_path'], request.FILES['file']))
+            # thread.start()
             FTP(request.session['ftp_path']).connect().upload(request.FILES['file'])
             print('上传成功')
-            return JsonResponse({'success': True})
+            return JsonResponse({'success': True, 'upload_id': 0})
         except Exception as e:
             print('上传失败', e)
             return JsonResponse({'success': False, 'info': str(e)})
     print('上传失败')
     return JsonResponse({'success': False, 'info': '上传失败'})
+
+
+def async_upload_request():
+    record = UploadRecord.objects.create()
+    return record
+
+
+def async_upload(record: UploadRecord, ftp_path, file):
+    try:
+        FTP(ftp_path).connect().upload(file)
+        record.state = 1
+    except Exception as e:
+        record.state = 2
+        print(e)
+
+    record.save()
 
 
 def create_folder(request):
